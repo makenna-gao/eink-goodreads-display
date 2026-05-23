@@ -9,11 +9,17 @@ PADDING = 12
 
 # Waveshare 4.2" 4-grayscale levels: black, dark gray, light gray, white
 _GRAY_LEVELS = [0, 85, 170, 255]
-_GRAY_LUT = [min(_GRAY_LEVELS, key=lambda l: abs(l - i)) for i in range(256)]
 
 
-def _quantize_4gray(img):
-    return img.convert("L").point(_GRAY_LUT)
+def _dither_cover(cover_img):
+    """Floyd-Steinberg dither a grayscale cover image to the 4 valid gray levels."""
+    pal_img = Image.new("P", (1, 1))
+    palette = [0] * 768
+    for i, level in enumerate(_GRAY_LEVELS):
+        palette[i * 3] = palette[i * 3 + 1] = palette[i * 3 + 2] = level
+    pal_img.putpalette(palette)
+    dithered = cover_img.convert("RGB").quantize(palette=pal_img, dither=Image.Dither.FLOYDSTEINBERG)
+    return dithered.convert("L")
 
 
 def _load_font(size):
@@ -59,12 +65,13 @@ def render(cover_path, title, author, label, output_path="display.png"):
 
     cover = Image.open(cover_path).convert("L")
     cover.thumbnail((cover_area_w, cover_area_h), Image.LANCZOS)
+    cover = _dither_cover(cover)  # dither before pasting, not the whole canvas
 
     cx = PADDING + (cover_area_w - cover.width) // 2
     cy = PADDING + (cover_area_h - cover.height) // 2
     canvas.paste(cover, (cx, cy))
 
-    # Divider
+    # Divider — uses exact palette value 170 so it stays crisp
     draw.line(
         [(COVER_PANEL_WIDTH, PADDING), (COVER_PANEL_WIDTH, DISPLAY_HEIGHT - PADDING)],
         fill=170,
@@ -72,6 +79,7 @@ def render(cover_path, title, author, label, output_path="display.png"):
     )
 
     # --- Text panel (right) ---
+    # All text uses exact palette values (0, 85, 170, 255) — no dithering needed
     text_x = TEXT_PANEL_X + PADDING
     text_max_w = DISPLAY_WIDTH - text_x - PADDING
     y = PADDING + 10
@@ -90,7 +98,10 @@ def render(cover_path, title, author, label, output_path="display.png"):
     author_font = _load_font(15)
     draw.text((text_x, y), author, font=author_font, fill=85)
 
-    canvas = _quantize_4gray(canvas)
+    # Canvas is "L" mode with only values in {0, 85, 170, 255}:
+    # bg=255, cover dithered above, divider=170, label=170, title=0, author=85
+    # This satisfies Waveshare getbuffer_4Gray() expectations.
+    assert canvas.mode == "L"
     canvas.save(output_path)
     print(f"Saved: {output_path}")
     return canvas
