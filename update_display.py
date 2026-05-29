@@ -18,12 +18,12 @@ def main():
         )
 
         # --- Waveshare e-ink display (uncomment on Pi) ---
-        # from waveshare_epd import epd4in2
-        # epd = epd4in2.EPD()
-        # epd.init()
+        # from waveshare_epd import epd4in2_V2
         # from PIL import Image
+        # epd = epd4in2_V2.EPD()
+        # epd.Init_4Gray()
         # img = Image.open("display.png")
-        # epd.display(epd.getbuffer_4Gray(img))
+        # epd.display_4Gray(epd.getbuffer_4Gray(img))
         # epd.sleep()
 
     except Exception as e:
